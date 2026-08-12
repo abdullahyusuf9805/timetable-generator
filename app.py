@@ -29,14 +29,12 @@ st.markdown(
             color: #ffffff;
         }
 
-        /* Responsive Title */
         h1 {
             font-size: clamp(1.2rem, 2.5vw, 2.2rem) !important;
             white-space: nowrap !important;
             color: #ffffff !important;
         }
 
-        /* STRICT ONE-LINE NAVIGATION BAR FOR PREV, SELECT, NEXT */
         .nav-row {
             display: flex;
             flex-direction: row;
@@ -53,7 +51,6 @@ st.markdown(
             flex: 1 1 auto !important;
         }
 
-        /* Center Download Button Container */
         .center-download {
             display: flex;
             flex-direction: column;
@@ -62,6 +59,97 @@ st.markdown(
             width: 100%;
             margin-top: 20px;
             text-align: center;
+        }
+        
+        /* =========================================
+           UI TIGHTENING CSS (Squish Elements in Card) 
+           ========================================= */
+        
+        /* Remove the default flex-gap inside the bordered card */
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stVerticalBlock"] {
+            gap: 0rem !important;
+        }
+        
+        /* Reduce padding of the card itself */
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {
+            padding: 1rem 0.8rem 0.5rem 0.8rem !important;
+            background-color: #1a1a1a !important;
+            border-radius: 8px !important;
+            border: 1px solid #2a2a2a !important;
+            margin-bottom: 12px !important;
+        }
+        
+        /* Squeeze slider and input closer together */
+        [data-testid="stSidebar"] [data-testid="stSlider"] {
+            margin-top: -10px !important;
+            margin-bottom: -5px !important;
+            padding-left: 20px !important;  /* Make room for the left inline label */
+            padding-right: 20px !important; /* Make room for the right inline label */
+        }
+        
+        [data-testid="stSidebar"] [data-testid="stTextInput"] {
+            margin-top: 5px !important;
+            margin-bottom: 0px !important;
+        }
+        
+        [data-testid="stSidebar"] [data-testid="stTextInput"] input {
+            font-size: 0.85rem !important;
+            background-color: #121212 !important;
+            border-color: #2a2a2a !important;
+        }
+
+        /* =========================================
+           SLIDER INLINE LABELS & THUMB CUSTOMIZATION
+           ========================================= */
+        
+        /* 1. HIDE THE STATIC MIN/MAX LABELS AT THE BOTTOM */
+        [data-testid="stTickBar"] {
+            display: none !important;
+        }
+
+        /* 2. STYLE THE TOOLTIP TO BE A FLAT INLINE TEXT LABEL */
+        div[data-baseweb="slider"] div[data-testid="stThumbValue"] {
+            background-color: transparent !important;
+            color: #ffffff !important;
+            font-weight: 600 !important;
+            font-size: 14px !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            position: absolute !important;
+            top: 50% !important; /* Center vertically with the track */
+            letter-spacing: 0.5px;
+        }
+
+        /* Hide the little triangle arrow pointing down from the tooltip */
+        div[data-baseweb="slider"] div[data-testid="stThumbValue"] svg {
+            display: none !important;
+        }
+
+        /* 3. PUSH LEFT THUMB VALUE TO THE FAR LEFT */
+        div[data-baseweb="slider"] div[role="slider"]:nth-of-type(1) div[data-testid="stThumbValue"] {
+            transform: translate(-140%, -50%) !important;
+        }
+
+        /* 4. PUSH RIGHT THUMB VALUE TO THE FAR RIGHT */
+        div[data-baseweb="slider"] div[role="slider"]:nth-of-type(2) div[data-testid="stThumbValue"] {
+            transform: translate(40%, -50%) !important;
+        }
+        
+        /* Revert thumbs to normal clean sizes */
+        div[data-baseweb="slider"] div[role="slider"] {
+            width: 18px !important;
+            height: 18px !important;
+            background-color: #ff4d4d !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        
+        /* Styling for Disabled Slider state */
+        div[data-baseweb="slider"][aria-disabled="true"] div[role="slider"] {
+            background-color: #888888 !important;
+        }
+        div[data-baseweb="slider"][aria-disabled="true"] div[data-testid="stThumbValue"] {
+            color: #888888 !important;
         }
     </style>
 """,
@@ -197,10 +285,9 @@ def parse_schedule_blocks(df_input):
 parsed_df = parse_schedule_blocks(raw_df)
 
 # ==========================================
-# 4. DYNAMIC SIDEBAR FILTERS (SUN - THU)
+# 4. UI FILTERS (Matching Final Image Logic)
 # ==========================================
 st.sidebar.header("Day & Time Matrix Filters")
-st.sidebar.caption("Check days and adjust acceptable hours (08 to 18).")
 
 days_config = {
     1: ("Sunday (Day 1)", False),
@@ -211,22 +298,75 @@ days_config = {
 }
 
 day_filters = {}
-for day_num, (label, default_val) in days_config.items():
-  is_on = st.sidebar.checkbox(label, value=default_val)
-  time_range = (
-      st.sidebar.slider(f"{label} Hours", 8, 18, (8, 18)) if is_on else (0, 0)
-  )
-  day_filters[day_num] = {"on": is_on, "range": time_range}
+day_exceptions = {}
 
+for day_num, (label, default_val) in days_config.items():
+  # Create a visual card container
+  with st.sidebar.container(border=True):
+    # Checkbox
+    is_on = st.checkbox(label, value=default_val, key=f"chk_{day_num}")
+
+    # Time Slider and Exception Logic
+    if is_on:
+      # Enabled Slider - format="%02d" keeps the 09, 16 formatting
+      time_range = st.slider(
+          "Hours", 8, 18, (8, 18), 
+          format="%02d",
+          key=f"slide_{day_num}", 
+          label_visibility="collapsed"
+      )
+      
+      ex_list = []
+      # Exception Dock (Permanently Expanded, cleaner placeholder)
+      exception_str = st.text_input(
+          "Exceptions", 
+          value="",
+          placeholder="Enter Excepted Hours", 
+          key=f"txt_{day_num}", 
+          label_visibility="collapsed"
+      )
+      
+      if exception_str.strip():
+        try:
+          ex_list = [int(x.strip()) for x in exception_str.split(",") if x.strip().isdigit()]
+        except ValueError:
+          pass
+
+      day_filters[day_num] = {"range": time_range}
+      day_exceptions[day_num] = ex_list
+
+    else:
+      # Disabled Slider
+      st.slider(
+          "Hours", 8, 18, (8, 18), 
+          format="%02d",
+          disabled=True, 
+          key=f"slide_dis_{day_num}", 
+          label_visibility="collapsed"
+      )
+      
+      # Disabled Exception Dock
+      st.text_input(
+          "Exceptions", 
+          value="",
+          placeholder="Enter Excepted Hours", 
+          key=f"txt_dis_{day_num}", 
+          label_visibility="collapsed",
+          disabled=True
+      )
+      
+      day_filters[day_num] = None
+      day_exceptions[day_num] = []
 
 def is_valid_time(row):
-  day, start, end = row["day"], row["start_time"], row["end_time"]
+  day, start = row["day"], row["start_time"]
   config = day_filters.get(day)
-  if config and config["on"]:
+  if config is not None:
     r_start, r_end = config["range"]
-    return r_start <= start and end <= r_end
+    if r_start <= start <= r_end:
+      if start not in day_exceptions.get(day, []):
+        return True
   return False
-
 
 parsed_df["is_valid"] = parsed_df.apply(is_valid_time, axis=1)
 invalid_ids = parsed_df[parsed_df["is_valid"] == False]["ID"].unique()
@@ -244,7 +384,57 @@ if "STATUS" in raw_df.columns:
     valid_blocks_df = valid_blocks_df[~closed_mask]
 
 # ==========================================
-# 5. SUBJECT-SPECIFIC TEACHER RULES
+# 5. GLOBAL HALL & SHUBA RULES (REQUIRE / BAN)
+# ==========================================
+st.sidebar.markdown("---")
+st.sidebar.header("Global Hall & Shuba Rules")
+st.sidebar.caption("Global filters to require or ban specific Halls and Shubas.")
+
+all_halls = sorted(
+    [str(h) for h in raw_df["HALL"].dropna().astype(str).unique() if h.strip()]
+)
+all_shubas = sorted(
+    [str(s) for s in raw_df["ID"].dropna().astype(str).unique() if s.strip()]
+)
+
+banned_halls = st.sidebar.multiselect(
+    "Ban Halls", options=all_halls, key="global_ban_halls"
+)
+remaining_halls = [h for h in all_halls if h not in banned_halls]
+required_halls = st.sidebar.multiselect(
+    "Require Halls", options=remaining_halls, key="global_req_halls"
+)
+
+banned_shubas = st.sidebar.multiselect(
+    "Ban Shubas (IDs)", options=all_shubas, key="global_ban_shubas"
+)
+remaining_shubas = [s for s in all_shubas if s not in banned_shubas]
+required_shubas = st.sidebar.multiselect(
+    "Require Shubas (IDs)", options=remaining_shubas, key="global_req_shubas"
+)
+
+# Apply Hall filters
+if banned_halls:
+  valid_blocks_df = valid_blocks_df[
+      ~valid_blocks_df["HALL"].astype(str).isin(banned_halls)
+  ]
+if required_halls:
+  valid_blocks_df = valid_blocks_df[
+      valid_blocks_df["HALL"].astype(str).isin(required_halls)
+  ]
+
+# Apply Shuba filters
+if banned_shubas:
+  valid_blocks_df = valid_blocks_df[
+      ~valid_blocks_df["ID"].astype(str).isin(banned_shubas)
+  ]
+if required_shubas:
+  valid_blocks_df = valid_blocks_df[
+      valid_blocks_df["ID"].astype(str).isin(required_shubas)
+  ]
+
+# ==========================================
+# 6. SUBJECT-SPECIFIC TEACHER RULES
 # ==========================================
 st.sidebar.markdown("---")
 st.sidebar.header("Subject-Specific Teacher Rules")
@@ -289,7 +479,7 @@ for subj, rules in subject_rules.items():
     ]
 
 # ==========================================
-# 6. DATA GROUPING & SOLVER
+# 7. DATA GROUPING & SOLVER
 # ==========================================
 sections_by_subject = {}
 for code, group in valid_blocks_df.groupby("CODE"):
@@ -321,6 +511,7 @@ if len(target_subjects) < total_required_subjects:
       " subjects remaining after filters. Check your filters or rules."
   )
 
+
 @st.cache_data
 def generate_schedules(subjects_dict, targets):
   valid_schedules = []
@@ -349,11 +540,13 @@ def generate_schedules(subjects_dict, targets):
   backtrack(0, [], set())
   return valid_schedules
 
+
 schedules = (
     generate_schedules(sections_by_subject, target_subjects)
     if target_subjects
     else []
 )
+
 
 def calculate_schedule_score(schedule):
   day_slots = {}
@@ -373,10 +566,11 @@ def calculate_schedule_score(schedule):
       total_gaps += gaps
   return total_gaps
 
+
 schedules = sorted(schedules, key=calculate_schedule_score)
 
 # ==========================================
-# 7. IMAGE GENERATOR & UI RENDERING
+# 8. IMAGE GENERATOR & UI RENDERING
 # ==========================================
 
 
@@ -602,3 +796,4 @@ else:
           mime="application/zip",
       )
   st.markdown("</div>", unsafe_allow_html=True)
+
